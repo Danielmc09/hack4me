@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  scanner_api:
+    build: .
+    container_name: scanner_api
+    ports:
+      - "8002:8000"
+    volumes:
+      - .:/app
+      - ./reports:/app/reports
+    network_mode: bridge
+    
