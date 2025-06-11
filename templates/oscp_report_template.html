@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>OSCP Exam Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 12pt;
+            margin: 2cm;
+            line-height: 1.6;
+            color: #000000;
+            background-color: #ffffff;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 2px solid #000000;
+            padding-bottom: 10px;
+        }
+        h1 {
+            font-size: 18pt;
+            margin-bottom: 5px;
+        }
+        h2 {
+            font-size: 14pt;
+            margin-top: 20px;
+            margin-bottom: 5px;
+            border-bottom: 1px solid #000000;
+        }
+        h3 {
+            font-size: 12pt;
+            margin-top: 10px;
+        }
+        p {
+            text-align: justify;
+            margin-bottom: 10px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 11pt;
+        }
+        th, td {
+            border: 1px solid #000000;
+            padding: 5px;
+            text-align: left;
+        }
+        th {
+            background-color: #dddddd;
+        }
+        .section-number {
+            font-weight: bold;
+        }
+        footer {
+            text-align: center;
+            font-size: 10pt;
+            margin-top: 30px;
+            border-top: 1px solid #000000;
+            padding-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Offensive Security Certified Professional Exam Report</h1>
+        <p>{{ student_email }}, OSID: {{ osid }}</p>
+        <p>{{ exam_date }}</p>
+    </header>
+
+    <h2 class="section-number">Contents</h2>
+    {% if table_of_contents %}
+        <ul>
+            {% for item in table_of_contents %}
+                <li>{{ item }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No contents available.</p>
+    {% endif %}
+
+    <h2 class="section-number">1. Summary</h2>
+    <p>{{ summary }}</p>
+
+    <h2 class="section-number">2. Objective</h2>
+    <p>{{ objective }}</p>
+
+    <h2 class="section-number">3. Requirements</h2>
+    {% if requirements %}
+        <ul>
+            {% for req in requirements %}
+                <li>{{ req }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No requirements specified.</p>
+    {% endif %}
+
+    <h2 class="section-number">4. High-Level Summary</h2>
+    <p>{{ high_level_summary }}</p>
+
+    <h2 class="section-number">5. Recommendations</h2>
+    {% if recommendations %}
+        <ul>
+            {% for rec in recommendations %}
+                <li>{{ rec }}</li>
+            {% endfor %}
+        </ul>
+    {% else %}
+        <p>No recommendations provided.</p>
+    {% endif %}
+
+    <h2 class="section-number">6. Methodology</h2>
+    {% if methodology %}
+        {% for step in methodology %}
+            <h3>{{ step.title }}</h3>
+            <p><strong>Description:</strong> {{ step.description }}</p>
+            <p><strong>Evidence:</strong> {{ step.evidence }}</p>
+        {% endfor %}
+    {% else %}
+        <p>No methodology provided.</p>
+    {% endif %}
+
+    <h2 class="section-number">7. Findings</h2>
+    {% if penetration %}
+        {% for finding in penetration %}
+            <h3>{{ finding.vulnerability_exploited }}</h3>
+            <p><strong>System Affected:</strong> {{ finding.system_vulnerable }}</p>
+            <p><strong>Description:</strong> {{ finding.description }}</p>
+            <p><strong>Severity:</strong> {{ finding.severity }}</p>
+            <p><strong>Proof of Concept:</strong></p>
+            <pre>{{ finding.proof_of_concept }}</pre>
+        {% endfor %}
+    {% else %}
+        <p>No findings reported.</p>
+    {% endif %}
+
+    {% if vulnerabilities %}
+        <h3>Vulnerabilities Table</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>CVE ID</th>
+                    <th>Severity</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for vuln in vulnerabilities %}
+                    <tr>
+                        <td>{{ vuln.cve_id }}</td>
+                        <td>{{ vuln.severity }}</td>
+                    </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    {% endif %}
+
+    <h2 class="section-number">8. Additional Notes</h2>
+    <p>{{ additional_notes }}</p>
+
+    <footer>
+        © 2025 hack4me. Confidential and for internal use only.
+    </footer>
+</body>
+</html>
