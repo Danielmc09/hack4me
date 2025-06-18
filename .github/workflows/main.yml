@@ -1,0 +1,57 @@
+# Nombre del flujo de trabajo que aparecerá en GitHub Actions
+name: Construir y Empujar a AWS ECR
+
+# Define cuándo se ejecutará este flujo de trabajo.
+# Se ejecutará en cada 'push' a la rama 'main'.
+on:
+  push:
+    branches:
+      - main
+
+# Define los permisos necesarios para este flujo de trabajo.
+# 'id-token: write' es crucial para la autenticación OIDC con AWS.
+# 'contents: read' es necesario para que el paso 'checkout' funcione.
+permissions:
+  id-token: write # Permite la generación de un token OIDC para AWS
+  contents: read  # Permite leer el código del repositorio
+
+# Define el 'job' (trabajo) que se ejecutará como parte de este flujo de trabajo.
+jobs:
+  build-and-push-ecr:
+    # Define el entorno donde se ejecutará este trabajo.
+    # 'ubuntu-latest' es una imagen de Ubuntu reciente con Docker preinstalado.
+    runs-on: ubuntu-latest
+
+    # Define los pasos (steps) que componen este trabajo.
+    steps:
+      - name: Checkout del código
+        # Usa la acción oficial de GitHub para clonar tu repositorio.
+        uses: actions/checkout@v4
+
+      - name: Configurar credenciales de AWS
+        # Esta acción es clave para la autenticación OIDC.
+        # Asume un rol de IAM en AWS que confía en el proveedor de OIDC de GitHub.
+        # Asegúrate de haber configurado el rol de IAM en AWS con la política de confianza adecuada
+        # y de reemplazar 'GitHubActionsRole' con el nombre de tu rol IAM.
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }} # Obtiene la región de AWS de los secretos de GitHub
+          role-to-assume: ${{ secrets.AWS_ACCOUNT_ROLE }} # Obtiene el ID de cuenta de AWS de los secretos de GitHub
+
+      - name: Login a Amazon ECR
+        # Usa la acción oficial de Docker para iniciar sesión en ECR.
+        # Se autentica usando las credenciales configuradas en el paso anterior.
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.REGISTRY }}
+
+      - name: Construir la imagen Docker
+        # Construye la imagen Docker a partir del Dockerfile en el directorio raíz (.).
+        # La imagen se etiqueta con 'latest'.
+        run: |
+          docker build -t ${{ secrets.REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest .
+
+      - name: Empujar la imagen Docker a ECR
+        # Empuja la imagen con la etiqueta 'latest' al repositorio de ECR.
+        run: |
+          docker push ${{ secrets.REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
