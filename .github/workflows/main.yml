@@ -36,7 +36,8 @@ jobs:
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-region: ${{ secrets.AWS_REGION }} # Obtiene la región de AWS de los secretos de GitHub
-          role-to-assume: ${{ secrets.AWS_ACCOUNT_ROLE }} # Obtiene el ID de cuenta de AWS de los secretos de GitHub
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}   # Tu clave de acceso de IAM
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
 
       - name: Login a Amazon ECR
         # Usa la acción oficial de Docker para iniciar sesión en ECR.
