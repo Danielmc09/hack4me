@@ -1,0 +1,203 @@
+<!-- incident_postmortem_template.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Security Incident Postmortem</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            font-size: 11pt;
+            margin: 2.54cm;
+            background-color: #ffffff;
+            color: #000000;
+            line-height: 1.5;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+            border-bottom: 1px solid #999999;
+            padding-bottom: 10px;
+        }
+        header img {
+            height: 60px;
+        }
+        h1 {
+            font-weight: bold;
+            font-size: 16pt;
+            margin-top: 0;
+        }
+        h2 {
+            font-weight: bold;
+            font-size: 12pt;
+            border-bottom: 1px solid #999999;
+            padding-bottom: 5px;
+            margin-top: 20px;
+        }
+        .watermark {
+            position: fixed;
+            top: 45%;
+            left: 35%;
+            font-size: 50px;
+            color: rgba(150, 150, 150, 0.1);
+            transform: rotate(-30deg);
+            z-index: 0;
+        }
+        .section {
+            margin-bottom: 20px;
+            z-index: 1;
+        }
+        pre {
+            background-color: #f4f4f4;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+            font-size: 10pt;
+        }
+        table, th, td {
+            border: 1px solid #999999;
+        }
+        th {
+            background-color: #000000;
+            color: white;
+            text-align: left;
+            font-weight: bold;
+            padding: 6px;
+        }
+        td {
+            padding: 6px;
+            text-align: left;
+        }
+    </style>
+</head>
+<body>
+    <div class="watermark">CONFIDENTIAL</div>
+    <header>
+        <!-- <img src="https://your-company-logo-url.com/logo.png" alt="Company Logo"> -->
+        <h1>Security Incident Postmortem</h1>
+    </header>
+
+    <!-- Todas las secciones (Summary, Leadup, etc.) -->
+    <div class="section">
+        <h2>Summary</h2>
+        <p>{{ summary }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Leadup</h2>
+        <p>{{ leadup }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Fault</h2>
+        <p>{{ fault }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Impact</h2>
+        <p>{{ impact }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Detection</h2>
+        <p>{{ detection }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Response</h2>
+        <p>{{ response }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Recovery</h2>
+        <p>{{ recovery }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Timeline</h2>
+        <ul>
+        {% for item in timeline %}
+            <li><strong>{{ item.time }}</strong>: {{ item.event }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Root Cause Identification: The Five Whys</h2>
+        <ul>
+        {% for why in five_whys %}
+            <li>{{ why }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Root Cause</h2>
+        <p>{{ root_cause }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Backlog Check</h2>
+        <ul>
+        {% for item in backlog_check %}
+            <li>{{ item.item }} (Priority: {{ item.priority }})</li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Recurrence</h2>
+        <p>{{ recurrence }}</p>
+    </div>
+
+    <div class="section">
+        <h2>Lessons Learned</h2>
+        <ul>
+        {% for lesson in lessons_learned %}
+            <li>{{ lesson }}</li>
+        {% endfor %}
+        </ul>
+    </div>
+
+    <div class="section">
+        <h2>Ports and CVEs</h2>
+        {% if ports_vulnerabilities %}
+        <table>
+          <thead>
+            <tr>
+              <th>Port</th>
+              <th>Service</th>
+              <th>Version</th>
+              <th>CVEs</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for item in ports_vulnerabilities %}
+              <tr>
+                <td>{{ item.port }}</td>
+                <td>{{ item.service }}</td>
+                <td>{{ item.version }}</td>
+                <td>
+                  {% for cve in item.cves %}
+                    <span>{{ cve }}</span>{% if not loop.last %}, {% endif %}
+                  {% endfor %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}
+          <p>No data available.</p>
+        {% endif %}
+    </div>
+
+    <footer>
+        © 2025 hack4me. Confidential and for internal use only.
+    </footer>
+</body>
+</html>

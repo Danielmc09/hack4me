@@ -3,6 +3,11 @@ import os
 import json
 from datetime import datetime
 import pdfkit
+from app.factories.logger_factory import LoggerFactory
+from jinja2 import Environment, FileSystemLoader
+
+
+logger = LoggerFactory.create_logger("report_service")
 
 # Importaciones AWS (comentadas temporalmente)
 # import boto3
@@ -58,9 +63,9 @@ def guardar_en_dynamodb(domain, scan_result):
     try:
         with open(json_path, 'w') as f:
             json.dump(report_data, f, indent=2)
-        print(f"Reporte JSON guardado en: {json_path}")
+        logger.info(f"Reporte JSON guardado exitosamente: {json_path}")
     except Exception as e:
-        print(f"Error al guardar el reporte JSON: {e}")
+        logger.error(f"Error al guardar el reporte JSON para {domain}: {str(e)}")
 
 # Función para AWS S3 (comentada temporalmente)
 # def generar_pdf_en_s3(domain, scan_result):
@@ -85,22 +90,39 @@ def guardar_en_dynamodb(domain, scan_result):
 #             os.remove(pdf_path)
 
 # Función local que reemplaza a S3 temporalmente
-def generar_pdf_en_s3(domain, scan_result):
-    html = f"""
-    <html>
-    <head><title>Reporte de Nmap</title></head>
-    <body>
-    <h1>Reporte de escaneo para: {domain}</h1>
-    <pre>{scan_result}</pre>
-    </body>
-    </html>
-    """
-    timestamp = datetime.utcnow().isoformat()
-    pdf_filename = f"{domain}_{timestamp}.pdf"
-    pdf_path = os.path.join(PDF_DIR, pdf_filename)
-    
+def generar_pdf_en_s3(domain, data):
+    logger.info(f"Iniciando generación de PDF para: {domain}")
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     try:
-        pdfkit.from_string(html, pdf_path)
-        print(f"PDF generado en: {pdf_path}")
+        TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'templates')
+        TEMPLATES_DIR = os.path.abspath(TEMPLATES_DIR)
+        env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
+        template = env.get_template('oscp_report_template.html')
+
+        rendered_html = template.render(
+            student_email="auditor@hack4me.com",
+            osid=f"HACK4ME-{timestamp}",
+            exam_date=datetime.utcnow().date(),
+            summary=data.get("summary", "No summary available."),
+            table_of_contents=data.get("table_of_contents", []),
+            objective=data.get("objective", ""),
+            requirements=data.get("requirements", []),
+            high_level_summary=data.get("high_level_summary", ""),
+            recommendations=data.get("recommendations", []),
+            methodology=data.get("methodology", []),
+            information_gathering=data.get("information_gathering", ""),
+            service_enumeration=data.get("service_enumeration", []),
+            penetration=data.get("penetration", []),
+            maintaining_access=data.get("maintaining_access", ""),
+            house_cleaning=data.get("house_cleaning", ""),
+            additional_notes=data.get("additional_notes", "")
+        )
+
+        pdf_filename = f"OSCP_{domain}_{timestamp}.pdf"
+        pdf_path = os.path.join(PDF_DIR, pdf_filename)
+
+        pdfkit.from_string(rendered_html, pdf_path)
+        logger.info(f"PDF generado exitosamente: {pdf_path}")
+
     except Exception as e:
-        print(f"Error al generar PDF: {e}")
+        logger.error(f"Error al generar PDF para {domain}: {str(e)}")

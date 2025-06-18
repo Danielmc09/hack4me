@@ -4,3 +4,6 @@ python-nmap
 pydantic
 boto3
 pdfkit
+requests
+jinja2
+
