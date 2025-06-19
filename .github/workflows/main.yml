@@ -44,15 +44,15 @@ jobs:
         # Se autentica usando las credenciales configuradas en el paso anterior.
         run: |
           aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
-          | docker login --username AWS --password-stdin ${{ secrets.REGISTRY }}
+          | docker login --username AWS --password-stdin ${{ secrets.ECR_REPOSITORY }}
 
       - name: Construir la imagen Docker
         # Construye la imagen Docker a partir del Dockerfile en el directorio raíz (.).
         # La imagen se etiqueta con 'latest'.
         run: |
-          docker build -t ${{ secrets.REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest .
+          docker build -t ${{ secrets.ECR_REPOSITORY }}/${{ secrets.REGISTRY }}:latest .
 
       - name: Empujar la imagen Docker a ECR
         # Empuja la imagen con la etiqueta 'latest' al repositorio de ECR.
         run: |
-          docker push ${{ secrets.REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+          docker push ${{ secrets.ECR_REPOSITORY }}/${{ secrets.REGISTRY }}:latest
