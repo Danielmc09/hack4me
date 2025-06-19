@@ -2,6 +2,7 @@ fastapi
 uvicorn
 python-nmap
 pydantic
+email-validator>=2.2.0
 boto3
 pdfkit
 requests

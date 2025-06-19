@@ -11,5 +11,6 @@ services:
     volumes:
       - .:/app
       - ./reports:/app/reports
+      - ./logs:/app/logs
     network_mode: bridge
     

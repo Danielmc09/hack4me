@@ -5,124 +5,139 @@ from datetime import datetime
 import pdfkit
 from app.factories.logger_factory import LoggerFactory
 from jinja2 import Environment, FileSystemLoader
-
+import boto3
 
 logger = LoggerFactory.create_logger("report_service")
 
-# Importaciones AWS (comentadas temporalmente)
-# import boto3
-
-# Configuración desde variables de entorno
-# AWS Config (comentado temporalmente)
-# TABLE_NAME = 'nmap-scan-reports'  # Ajustar a tu tabla real
-# BUCKET_NAME = 'nmap-scan-reports-bucket' 
+# Configuración AWS desde variables de entorno
+tables_env = {
+    'AWS_REGION': os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'us-east-1')),
+    'TABLE_NAME': os.getenv('DYNAMODB_TABLE_NAME', 'companies'),
+    'BUCKET_NAME': os.getenv('S3_BUCKET_NAME', 'hacker4me')
+}
+AWS_REGION = tables_env['AWS_REGION']
+TABLE_NAME = tables_env['TABLE_NAME']
+BUCKET_NAME = tables_env['BUCKET_NAME']
 
 # Configuración local
-REPORTS_DIR = 'reports'
-JSON_DIR = os.path.join(REPORTS_DIR, 'json')
-PDF_DIR = os.path.join(REPORTS_DIR, 'pdf')
+def ensure_local_dir(path):
+    os.makedirs(path, exist_ok=True)
 
-# Crear directorios si no existen
-for directory in [REPORTS_DIR, JSON_DIR, PDF_DIR]:
-    os.makedirs(directory, exist_ok=True)
+BASE_REPORTS_DIR = 'reports'
+ensure_local_dir(BASE_REPORTS_DIR)
 
-# Inicialización AWS (comentada temporalmente)
-# try:
-#     dynamodb = boto3.resource('dynamodb')
-#     s3 = boto3.client('s3')
-# except Exception as e:
-#     print(f"Error al inicializar servicios AWS: {e}")
-#     dynamodb = None
-#     s3 = None
+# Inicializar servicios AWS def
+def inicializar_servicios_aws():
+    """Inicializa los servicios AWS con credenciales del entorno."""
+    if not (os.getenv('AWS_ACCESS_KEY_ID') and os.getenv('AWS_SECRET_ACCESS_KEY')):
+        logger.warning("Credenciales AWS no configuradas. Usando almacenamiento local.")
+        return None, None
 
-# Función para AWS DynamoDB (comentada temporalmente)
-# def guardar_en_dynamodb(domain, scan_result):
-#     table = dynamodb.Table(TABLE_NAME)
-#     item = {
-#         'domain': domain,
-#         'timestamp': datetime.utcnow().isoformat(),
-#         'scan_result': scan_result
-#     }
-#     try:
-#         table.put_item(Item=item)
-#         print(f"Reporte guardado en DynamoDB para {domain}")
-#     except Exception as e:
-#         print(f"Error al guardar en DynamoDB: {e}")
+    try:
+        # boto3 cargará automáticamente AWS_SESSION_TOKEN
+        dynamodb = boto3.resource('dynamodb', region_name=AWS_REGION)
+        s3 = boto3.client('s3', region_name=AWS_REGION)
 
-# Función local que reemplaza a DynamoDB temporalmente
-def guardar_en_dynamodb(domain, scan_result):
+        # Validar DynamoDB
+        try:
+            table = dynamodb.Table(TABLE_NAME)
+            table.load()
+            logger.info(f"Conexión a DynamoDB validada: {TABLE_NAME}")
+        except Exception as e:
+            logger.warning(f"No se pudo acceder a la tabla DynamoDB {TABLE_NAME}: {e}")
+
+        # Validar S3
+        try:
+            s3.head_bucket(Bucket=BUCKET_NAME)
+            logger.info(f"Conexión a S3 validada: {BUCKET_NAME}")
+        except Exception as e:
+            logger.warning(f"No se pudo acceder al bucket S3 {BUCKET_NAME}: {e}")
+
+        logger.info("Servicios AWS inicializados correctamente")
+        return dynamodb, s3
+
+    except Exception as e:
+        logger.error(f"Error al inicializar servicios AWS: {e}")
+        return None, None
+
+# Ejecutar inicialización
+dynamodb, s3 = inicializar_servicios_aws()
+aws_disponible = dynamodb is not None and s3 is not None
+
+
+def guardar_en_dynamodb(domain, email):
+    """
+    Guarda el resultado en DynamoDB usando:
+      - domain  como clave de partición (PK)
+      - email   como clave de ordenación (SK)
+    O, si falla, lo vuelca a un JSON local en reports/<domain>/
+    """
     timestamp = datetime.utcnow().isoformat()
-    report_data = {
-        'domain': domain,
-        'timestamp': timestamp,
-        'scan_result': scan_result
-    }
-    
-    json_filename = f"{domain}_{timestamp}.json"
-    json_path = os.path.join(JSON_DIR, json_filename)
+
+    if aws_disponible:
+        try:
+            table = dynamodb.Table(TABLE_NAME)
+            item = {
+                'domain': domain,      # PK – debe llamarse exactamente 'domain'
+                'email': email,        # SK – debe llamarse exactamente 'email'
+                'timestamp': timestamp # atributo adicional
+            }
+            table.put_item(Item=item)
+            logger.info(f"Guardado en DynamoDB: domain={domain}, email={email}")
+            return
+        except Exception as e:
+            logger.error(f"Error al guardar en DynamoDB: {e}. Fallback local.")
+
+    # Fallback local JSON
+    domain_dir = os.path.join(BASE_REPORTS_DIR, domain)
+    ensure_local_dir(domain_dir)
+    json_filename = f"{domain}_{email}_{timestamp.replace(':','-')}.json"
+    json_path = os.path.join(domain_dir, json_filename)
+    data = {'domain': domain, 'email': email, 'timestamp': timestamp}
     try:
         with open(json_path, 'w') as f:
-            json.dump(report_data, f, indent=2)
-        logger.info(f"Reporte JSON guardado exitosamente: {json_path}")
+            json.dump(data, f, indent=2)
+        logger.info(f"Reporte JSON local: {json_path}")
     except Exception as e:
-        logger.error(f"Error al guardar el reporte JSON para {domain}: {str(e)}")
+        logger.error(f"Error al guardar JSON local: {e}")
 
-# Función para AWS S3 (comentada temporalmente)
-# def generar_pdf_en_s3(domain, scan_result):
-#     html = f"""
-#     <html>
-#     <head><title>Reporte de Nmap</title></head>
-#     <body>
-#     <h1>Reporte de escaneo para: {domain}</h1>
-#     <pre>{scan_result}</pre>
-#     </body>
-#     </html>
-#     """
-#     pdf_path = f"/tmp/{domain}_report.pdf"
-#     try:
-#         pdfkit.from_string(html, pdf_path)
-#         s3.upload_file(pdf_path, BUCKET_NAME, f"{domain}_report.pdf")
-#         print(f"PDF subido a S3: {domain}_report.pdf")
-#     except Exception as e:
-#         print(f"Error al generar o subir PDF: {e}")
-#     finally:
-#         if os.path.exists(pdf_path):
-#             os.remove(pdf_path)
 
-# Función local que reemplaza a S3 temporalmente
+
 def generar_pdf_en_s3(domain, data):
-    logger.info(f"Iniciando generación de PDF para: {domain}")
+    """Genera PDF y sube a S3/reports/<domain>/ o guarda localmente."""
+    logger.info(f"Generando PDF para: {domain}")
     timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
     try:
-        TEMPLATES_DIR = os.path.join(os.path.dirname(__file__), '..', '..', 'templates')
-        TEMPLATES_DIR = os.path.abspath(TEMPLATES_DIR)
-        env = Environment(loader=FileSystemLoader(TEMPLATES_DIR))
+        # Render HTML con Jinja2
+        templates_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', '..', 'templates')
+        )
+        env = Environment(loader=FileSystemLoader(templates_dir))
         template = env.get_template('oscp_report_template.html')
-
-        rendered_html = template.render(
+        rendered = template.render(
             student_email="auditor@hack4me.com",
             osid=f"HACK4ME-{timestamp}",
             exam_date=datetime.utcnow().date(),
-            summary=data.get("summary", "No summary available."),
-            table_of_contents=data.get("table_of_contents", []),
-            objective=data.get("objective", ""),
-            requirements=data.get("requirements", []),
-            high_level_summary=data.get("high_level_summary", ""),
-            recommendations=data.get("recommendations", []),
-            methodology=data.get("methodology", []),
-            information_gathering=data.get("information_gathering", ""),
-            service_enumeration=data.get("service_enumeration", []),
-            penetration=data.get("penetration", []),
-            maintaining_access=data.get("maintaining_access", ""),
-            house_cleaning=data.get("house_cleaning", ""),
-            additional_notes=data.get("additional_notes", "")
+            **data
         )
+        filename = f"OSCP_{domain}_{timestamp}.pdf"
 
-        pdf_filename = f"OSCP_{domain}_{timestamp}.pdf"
-        pdf_path = os.path.join(PDF_DIR, pdf_filename)
+        if aws_disponible:
+            # Subida a S3 en reports/<domain>/
+            tmp = f"/tmp/{filename}"
+            pdfkit.from_string(rendered, tmp)
+            s3_key = f"reports/{domain}/{filename}"
+            s3.upload_file(tmp, BUCKET_NAME, s3_key)
+            logger.info(f"PDF S3: s3://{BUCKET_NAME}/{s3_key}")
+            os.remove(tmp)
+            return
 
-        pdfkit.from_string(rendered_html, pdf_path)
-        logger.info(f"PDF generado exitosamente: {pdf_path}")
+        # Fallback local
+        domain_dir = os.path.join(BASE_REPORTS_DIR, domain)
+        ensure_local_dir(domain_dir)
+        local_pdf = os.path.join(domain_dir, filename)
+        pdfkit.from_string(rendered, local_pdf)
+        logger.info(f"PDF local: {local_pdf}")
 
     except Exception as e:
-        logger.error(f"Error al generar PDF para {domain}: {str(e)}")
+        logger.error(f"Error generando PDF: {e}")
