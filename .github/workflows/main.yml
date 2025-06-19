@@ -42,9 +42,9 @@ jobs:
       - name: Login a Amazon ECR
         # Usa la acción oficial de Docker para iniciar sesión en ECR.
         # Se autentica usando las credenciales configuradas en el paso anterior.
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ secrets.REGISTRY }}
+        run: |
+          aws ecr get-login-password --region ${{ secrets.AWS_REGION }} \
+          | docker login --username AWS --password-stdin ${{ secrets.REGISTRY }}
 
       - name: Construir la imagen Docker
         # Construye la imagen Docker a partir del Dockerfile en el directorio raíz (.).
