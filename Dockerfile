@@ -28,7 +28,7 @@ RUN apt-get update \
 COPY --from=builder /install /usr/local
 
 # Tu código
-COPY ./app .
+COPY . .
 
 EXPOSE 8000
 
