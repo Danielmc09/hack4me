@@ -1,6 +1,6 @@
 # hack4me
 
-![System Architecture](image1)
+![System Architecture](docs/img/diagram.png)
 
 ## Overview
 
@@ -80,4 +80,4 @@ See above for a high-level architecture diagram of the system.
 
 *This README was generated with reference to the workflow diagram provided.*
 
-![System Architecture](image1)
+![System Architecture](docs/img/diagram.png)
