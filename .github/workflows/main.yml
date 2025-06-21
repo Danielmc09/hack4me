@@ -50,7 +50,7 @@ jobs:
         # Construye la imagen Docker a partir del Dockerfile en el directorio raíz (.).
         # La imagen se etiqueta con 'latest'.
         run: |
-          docker build -t ${{ secrets.ECR_REPOSITORY }}/${{ secrets.REGISTRY }}:latest .
+          docker build --no-cache -t ${{ secrets.ECR_REPOSITORY }}/${{ secrets.REGISTRY }}:latest .
 
       - name: Empujar la imagen Docker a ECR
         # Empuja la imagen con la etiqueta 'latest' al repositorio de ECR.
