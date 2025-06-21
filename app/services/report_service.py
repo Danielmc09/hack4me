@@ -141,3 +141,56 @@ def generar_pdf_en_s3(domain, data):
 
     except Exception as e:
         logger.error(f"Error generando PDF: {e}")
+
+
+def generar_pdf_en_memoria(domain, data):
+    """Genera un PDF en memoria y retorna los bytes."""
+    logger.info(f"Generando PDF en memoria para: {domain}")
+    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    try:
+        templates_dir = os.path.abspath(
+            os.path.join(os.path.dirname(__file__), '..', '..', 'templates')
+        )
+        env = Environment(loader=FileSystemLoader(templates_dir))
+        template = env.get_template('oscp_report_template.html')
+        rendered = template.render(
+            student_email="auditor@hack4me.com",
+            osid=f"HACK4ME-{timestamp}",
+            exam_date=datetime.utcnow().date(),
+            **data
+        )
+        # Generar PDF en memoria
+        import io
+        pdf_bytes = pdfkit.from_string(rendered, False)
+        return pdf_bytes
+    except Exception as e:
+        logger.error(f"Error generando PDF en memoria: {e}")
+        return None
+
+
+def subir_pdf_memoria_a_s3(domain, pdf_bytes):
+    """Sube un PDF en memoria a S3 en reports/<domain>/ y retorna la URL."""
+    from datetime import datetime
+    import boto3
+    import os
+    BUCKET_NAME = os.getenv('S3_BUCKET_NAME', 'hacker4me')
+    AWS_REGION = os.getenv('AWS_REGION', os.getenv('AWS_DEFAULT_REGION', 'us-east-1'))
+    filename = f"OSCP_{domain}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
+    s3_key = f"reports/{domain}/{filename}"
+    try:
+        s3 = boto3.client('s3', region_name=AWS_REGION)
+        s3.upload_fileobj(
+            io.BytesIO(pdf_bytes), BUCKET_NAME, s3_key,
+            ExtraArgs={'ContentType': 'application/pdf'}
+        )
+        # Obtener URL firmada
+        url = s3.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': BUCKET_NAME, 'Key': s3_key},
+            ExpiresIn=3600  # 1 hora
+        )
+        logger.info(f"PDF subido a S3 (URL firmada): {url}")
+        return url
+    except Exception as e:
+        logger.error(f"Error subiendo PDF a S3: {e}")
+        return None
