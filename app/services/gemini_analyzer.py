@@ -5,7 +5,7 @@ import requests
 import json
 import re
 from datetime import datetime
-from app.services.ia_service import IAAnalyzer
+from app.services import IAAnalyzer
 from app.factories.logger_factory import LoggerFactory
 
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")

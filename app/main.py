@@ -1,16 +1,20 @@
 # app/main.py
-
 from fastapi import FastAPI, HTTPException
 from app.models.scan_request import ScanRequest
-from app.factories.scanner_factory import ScannerFactory
-from app.factories.logger_factory import LoggerFactory
-from app.factories.ia_factory import IAFactory
-import threading
-from app.services.sqs_consumer import consumir_sqs
-from app.services.report_service import guardar_en_dynamodb, generar_pdf_en_s3
+from app.factories.nmap_creator      import NmapScannerCreator
+from app.factories.gemini_creator    import GeminiAnalyzerCreator
+from app.factories.logger_factory    import LoggerFactory
+from app.services.report_service     import (
+    guardar_en_dynamodb,
+    generar_pdf_en_memoria,
+    subir_pdf_memoria_a_s3,
+)
+from app.services.email_service      import send_email
+from app.services.exceptions         import ScanError, AnalysisError, ReportError, EmailError
 
-app = FastAPI()
+app    = FastAPI()
 logger = LoggerFactory.create_logger("api")
+
 
 @app.get("/")
 def read_root():
@@ -20,46 +24,60 @@ def read_root():
     logger.info("Acceso a la ruta raíz")
     return {"message": "Bienvenido a la API de Escaneo de Dominios"}
 
+
 @app.post("/scan")
-def scan_domain(request: ScanRequest):
+def scan_domain(req: ScanRequest):
     """
-    Recibe un dominio y ejecuta el escaneo.
+    Escanea un dominio, genera reportes y envía enlace al PDF por email.
     """
     try:
-        domain = request.domain
-        logger.info(f"Iniciando escaneo para el dominio: {domain}")
-        
-        # 1️⃣ Escanear con Nmap
-        scanner = ScannerFactory.create_scanner('nmap')
-        scan_result = scanner.scan_domain(domain)
+        domain, email = req.domain, req.email
+        logger.info(f"Escaneo inicio: {domain} / {email}")
 
-        # 2️⃣ Analizar con Gemini
-        analyzer = IAFactory.create_analyzer("gemini")
-        report_data = analyzer.analyze_scan(domain, scan_result)
+        # 1️⃣ Escaneo con Nmap
+        scanner_creator = NmapScannerCreator()
+        scan_result     = scanner_creator.scan(domain)
 
-        # 3️⃣ Guardar JSON localmente
-        guardar_en_dynamodb(domain, report_data)
+        # 2️⃣ Análisis con IA
+        analyzer_creator = GeminiAnalyzerCreator()
+        report_data      = analyzer_creator.analyze(domain, scan_result)
 
-        # 4️⃣ Generar PDF con la plantilla
-        generar_pdf_en_s3(domain, report_data)
-        
-        logger.info(f"Escaneo completado para el dominio: {domain}")
+        # 3️⃣ Guardar metadatos en DynamoDB
+        guardar_en_dynamodb(domain, email)
+
+        # 4️⃣ Generar PDF en memoria
+        pdf_bytes = generar_pdf_en_memoria(domain, report_data)
+
+        pdf_url = None
+        if pdf_bytes:
+            # 5️⃣ Subir a S3 y obtener URL firmada
+            pdf_url = subir_pdf_memoria_a_s3(domain, pdf_bytes)
+
+            # 6️⃣ Enviar email al cliente
+            asunto = f"Reporte Hack4Me: {domain}"
+            cuerpo = (
+                f"Hola,\n\n"
+                f"Tu reporte de seguridad para **{domain}** ha finalizado exitosamente.\n\n"
+                f"🔗 Puedes descargarlo aquí:\n{pdf_url}\n\n"
+                f"© 2025 Hack4Me. Todos los derechos reservados."
+            )
+            send_email(email, asunto, cuerpo)
+
         return {
-            "domain": domain,
-            "scan_result": scan_result,
-            "security_report": report_data
+            "domain":          domain,
+            "email":           email,
+            "scan_result":     scan_result,
+            "security_report": report_data,
+            "pdf_url":         pdf_url,
         }
-    except Exception as e:
-        logger.error(f"Error durante el escaneo: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
 
-@app.on_event("startup")
-def start_background_consumer():
-    """ 
-    Inicia el consumidor de SQS en segundo plano.
-    """
-    logger.info("Iniciando la aplicación")
-    pass
-    #thread = threading.Thread(target=consumir_sqs)
-    #thread.daemon = True
-    #thread.start()
+    except (ScanError, AnalysisError, ReportError, EmailError) as e:
+        # Errores esperados de flujo
+        logger.error(f"Error de proceso: {e}")
+        status = 400 if isinstance(e, (ScanError, AnalysisError)) else 502 if isinstance(e, EmailError) else 500
+        raise HTTPException(status_code=status, detail=str(e))
+
+    except Exception as e:
+        # Cualquier otro error imprevisto
+        logger.exception("Error inesperado durante /scan")
+        raise HTTPException(status_code=500, detail="Error interno del servidor")

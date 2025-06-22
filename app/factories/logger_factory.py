@@ -39,3 +39,4 @@ class LoggerFactory:
         logger.addHandler(console_handler)
 
         return logger
+        
