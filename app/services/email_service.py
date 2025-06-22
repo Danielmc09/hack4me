@@ -1,12 +1,21 @@
+# app/services/email_service.py
+
+import io
+import os
 import smtplib
+from smtplib import SMTPException
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import formataddr
-import os
+from app.services.exceptions import EmailError
+from app.factories.logger_factory import LoggerFactory
 
-def enviar_correo(destinatario, asunto, cuerpo, remitente=None):
+logger = LoggerFactory.create_logger("email_service")
+
+def send_email(destinatario: str, asunto: str, cuerpo: str, remitente: str = None) -> None:
     """
     Envía un correo electrónico simple usando SMTP.
+    Lanza EmailError si ocurre cualquier fallo.
     """
     remitente = remitente or os.getenv('EMAIL_FROM', 'noreply@hack4me.com')
     smtp_host = os.getenv('SMTP_HOST', 'localhost')
@@ -26,7 +35,10 @@ def enviar_correo(destinatario, asunto, cuerpo, remitente=None):
                 server.starttls()
                 server.login(smtp_user, smtp_pass)
             server.sendmail(remitente, destinatario, msg.as_string())
-        return True
+        logger.info(f"Email enviado a {destinatario}")
+    except SMTPException as e:
+        logger.error(f"SMTP error enviando correo a {destinatario}: {e}")
+        raise EmailError(f"No se pudo enviar el email: {e}")
     except Exception as e:
-        print(f"Error enviando correo: {e}")
-        return False
+        logger.error(f"Error inesperado enviando correo a {destinatario}: {e}")
+        raise EmailError(f"No se pudo enviar el email: {e}")

@@ -1,9 +1,9 @@
 # app/services/nmap_scanner.py
-
 import nmap
 from app.factories.logger_factory import LoggerFactory
+from app.services import Scanner
 
-class NmapScanner:
+class NmapScanner(Scanner):
     def __init__(self):
         self.scanner = nmap.PortScanner()
         self.logger = LoggerFactory.create_logger("nmap_scanner")
@@ -13,9 +13,18 @@ class NmapScanner:
         Realiza un escaneo básico de puertos (1-1024) a un dominio.
         """
         result = {}
+
         try:
             self.logger.info(f"Iniciando escaneo para el dominio: {domain}")
             self.scanner.scan(domain, '1-1024', arguments='-sV')
+        except nmap.PortScannerError as e:
+            self.logger.exception("Error invocando nmap")
+            raise ScanError(f"Error al lanzar nmap: {e}") from e
+        except Exception as e:
+            self.logger.exception("Error inesperado durante el escaneo")
+            raise ScanError("Error inesperado en el escaneo") from e
+
+        try:
             for host in self.scanner.all_hosts():
                 self.logger.debug(f"Procesando host: {host}")
                 result[host] = []
