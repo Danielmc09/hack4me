@@ -1,9 +1,6 @@
-# app/services/report_service.py
-
 import os
 import json
 import io
-import shutil
 import pdfkit
 import boto3
 from datetime import datetime
@@ -12,132 +9,99 @@ from app.factories.logger_factory import LoggerFactory
 
 logger = LoggerFactory.create_logger("report_service")
 
-# ─── Configuración de rutas y AWS ────────────────────────────────────────────
-
-BASE_DIR       = os.getenv("PROJECT_ROOT", os.getcwd())
-TEMPLATE_DIR   = os.path.join(BASE_DIR, "templates")
-REPORTS_DIR    = os.path.join(BASE_DIR, "reports")
-PDF_FALLBACK   = os.path.join(REPORTS_DIR, "pdf")
+# Paths base
+BASE_DIR     = os.path.abspath(os.getenv("PROJECT_ROOT", "."))
+TEMPLATE_DIR = os.path.join(BASE_DIR, "templates")
+REPORTS_DIR  = os.path.join(BASE_DIR, "reports")
+PDF_FALLBACK = os.path.join(REPORTS_DIR, "pdf")
 os.makedirs(PDF_FALLBACK, exist_ok=True)
 
-AWS_REGION     = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
-TABLE_NAME     = os.getenv("DYNAMODB_TABLE_NAME", "companies")
-BUCKET_NAME    = os.getenv("S3_BUCKET_NAME", "hacker4me")
+# AWS config
+AWS_REGION  = os.getenv("AWS_REGION", os.getenv("AWS_DEFAULT_REGION", "us-east-1"))
+TABLE_NAME  = os.getenv("DYNAMODB_TABLE_NAME", "companies")
+BUCKET_NAME = os.getenv("S3_BUCKET_NAME", "hacker4me")
 
-# ─── Inicialización de clientes AWS ──────────────────────────────────────────
-
-_session = boto3.session.Session(region_name=AWS_REGION)
-_dynamodb = _session.resource("dynamodb")
-_s3       = _session.client("s3")
-
+# Inicializa sesión AWS
+_session    = boto3.session.Session()
+dynamodb    = _session.resource("dynamodb", region_name=AWS_REGION)
+s3          = _session.client("s3", region_name=AWS_REGION)
 try:
-    _dynamodb.Table(TABLE_NAME).load()
-    _s3.head_bucket(Bucket=BUCKET_NAME)
+    dynamodb.Table(TABLE_NAME).load()
+    s3.head_bucket(Bucket=BUCKET_NAME)
     aws_disponible = True
-    logger.info("AWS disponible: DynamoDB y S3 conectados correctamente")
-except Exception as e:
+    logger.info("AWS OK: DynamoDB y S3 disponibles")
+except Exception:
     aws_disponible = False
-    logger.warning(f"AWS no disponible ({e}), se usará fallback local")
+    logger.warning("Modo local: AWS no disponible")
 
-# ─── DynamoDB / Fallback JSON ────────────────────────────────────────────────
 
-def guardar_en_dynamodb(domain: str, email: str) -> None:
-    """
-    Guarda un ítem con PK=domain y SK=email en DynamoDB.
-    Si falla o AWS no está disponible, lo vuelca a JSON local en reports/<domain>/.
-    """
-    timestamp = datetime.utcnow().isoformat()
-    item = {"domain": domain, "email": email, "timestamp": timestamp}
+def guardar_en_dynamodb(domain: str, email: str):
+    ts   = datetime.utcnow().isoformat()
+    item = {"domain": domain, "email": email, "timestamp": ts}
 
     if aws_disponible:
         try:
-            _dynamodb.Table(TABLE_NAME).put_item(Item=item)
-            logger.info(f"Guardado en DynamoDB: domain={domain}, email={email}")
+            dynamodb.Table(TABLE_NAME).put_item(Item=item)
+            logger.info(f"Guardado en DynamoDB: {domain}/{email}")
             return
         except Exception as e:
-            logger.error(f"Error en DynamoDB ({e}), usando fallback local")
+            logger.error(f"DynamoDB falla, fallback local: {e}")
 
-    # Fallback: JSON local
-    domain_dir = os.path.join(REPORTS_DIR, domain)
-    os.makedirs(domain_dir, exist_ok=True)
-    filename = f"{domain}_{email}_{timestamp.replace(':','-')}.json"
-    filepath = os.path.join(domain_dir, filename)
-    with open(filepath, "w", encoding="utf-8") as f:
+    # Fallback JSON local
+    dir_ = os.path.join(REPORTS_DIR, domain)
+    os.makedirs(dir_, exist_ok=True)
+    path = os.path.join(dir_, f"{domain}_{email}_{ts}.json")
+    with open(path, "w") as f:
         json.dump(item, f, indent=2)
-    logger.info(f"Reporte JSON guardado localmente: {filepath}")
+    logger.info(f"Guardado JSON local: {path}")
 
-# ─── Generación de PDF en memoria ────────────────────────────────────────────
 
-def generar_pdf_en_memoria(domain: str, data: dict) -> bytes:
+def generar_pdf_en_memoria(domain: str, scan_result: dict, report_data: dict) -> bytes:
     """
-    Renderiza la plantilla HTML y devuelve un PDF en bytes.
+    Genera un PDF en memoria y retorna los bytes.
     """
     ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    env = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
-    tpl = env.get_template("oscp_report_template.html")
-
-    # Inyectamos tanto el scan_result como el resto de datos
-    html = tpl.render(
-        student_email=data.get("email", ""),
-        osid=f"HACK4ME-{ts}",
-        exam_date=datetime.utcnow().date(),
-        scan_result=data.get("scan_result", {}),
-        **data
-    )
-
     try:
+        env      = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
+        template = env.get_template("oscp_report_template.html")
+
+        html = template.render(
+            student_email=report_data.get("email", ""),
+            osid=f"HACK4ME-{ts}",
+            exam_date=datetime.utcnow().date(),
+            scan_result=scan_result,
+            **report_data
+        )
+
         pdf_bytes = pdfkit.from_string(html, False)
-        logger.info(f"PDF generado en memoria para {domain}")
+        logger.info("PDF generado en memoria")
         return pdf_bytes
+
     except Exception as e:
         logger.error(f"Error generando PDF en memoria: {e}")
         return b""
 
-# ─── Subida de PDF a S3 con URL firmada ──────────────────────────────────────
 
 def subir_pdf_memoria_a_s3(domain: str, pdf_bytes: bytes) -> str:
     """
-    Sube el PDF (bytes) a S3 en la carpeta reports/<domain>/ y retorna
-    una URL prefirmada con 1h de expiración.
+    Sube un PDF en memoria a S3 en reports/<domain>/ y retorna la URL firmada.
     """
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    key = f"reports/{domain}/OSCP_{domain}_{timestamp}.pdf"
-
+    key = f"reports/{domain}/OSCP_{domain}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
     try:
-        _s3.upload_fileobj(
+        s3.upload_fileobj(
             io.BytesIO(pdf_bytes),
             BUCKET_NAME,
             key,
             ExtraArgs={"ContentType": "application/pdf"}
         )
-        url = _s3.generate_presigned_url(
+        url = s3.generate_presigned_url(
             "get_object",
             Params={"Bucket": BUCKET_NAME, "Key": key},
             ExpiresIn=3600
         )
-        logger.info(f"PDF subido a S3 y URL firmada generada: {url}")
+        logger.info("PDF subido a S3 y URL firmada generada")
         return url
+
     except Exception as e:
         logger.error(f"Error subiendo PDF a S3: {e}")
         return ""
-
-# ─── Fallback local de PDF ──────────────────────────────────────────────────
-
-def guardar_pdf_fallback(domain: str, pdf_bytes: bytes) -> str:
-    """
-    Si falla la subida a S3, guarda el PDF bytes en reports/pdf/
-    y retorna la ruta local.
-    """
-    timestamp = datetime.utcnow().strftime("%Y%m%d%H%M%S")
-    filename = f"OSCP_{domain}_{timestamp}.pdf"
-    path = os.path.join(PDF_FALLBACK, filename)
-
-    try:
-        with open(path, "wb") as f:
-            f.write(pdf_bytes)
-        logger.info(f"PDF guardado en fallback local: {path}")
-        return path
-    except Exception as e:
-        logger.error(f"No se pudo guardar PDF localmente: {e}")
-        return ""
-
