@@ -46,6 +46,7 @@ reports/
 # Git
 .git
 .gitignore
+.github
 
 # Docker
 Dockerfile
@@ -65,3 +66,6 @@ test_*
 docs/
 *.md
 LICENSE
+
+#lambda
+lambda/
