@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Hacker4.Me Security Report</title>
+    <style>
+      /* Reset and typography */
+      body {
+        margin: 0;
+        padding: 0;
+        background-color: #ffffff;
+        font-family: 'Mulish', sans-serif;
+        color: #000000;
+      }
+      table {
+        border-spacing: 0;
+        border-collapse: collapse;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      /* Wrapper */
+      .wrapper {
+        width: 100%;
+        table-layout: fixed;
+        background-color: #ffffff;
+        padding-bottom: 40px;
+      }
+      .main {
+        background-color: #ffffff;
+        margin: 20px auto;
+        width: 100%;
+        max-width: 600px;
+        border: 1px solid #000000;
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      /* Header */
+      .header {
+        background-color: #000000;
+        padding: 20px;
+        text-align: center;
+      }
+      .header img {
+        max-width: 150px;
+        height: auto;
+        display: block;
+        margin: 0 auto;
+      }
+      .header .brand-name {
+        font-size: 24px;
+        font-weight: bold;
+        color: #ffffff;
+      }
+
+      /* Content */
+      .content {
+        padding: 30px 40px;
+      }
+      .content h1 {
+        margin: 0 0 16px;
+        font-size: 24px;
+        color: #000000;
+      }
+      .content p {
+        margin: 0 0 16px;
+        line-height: 1.5;
+        font-size: 14px;
+        color: #000000;
+      }
+
+      /* Footer */
+      .footer {
+        font-size: 12px;
+        text-align: center;
+        color: #000000;
+        padding: 20px 40px;
+        border-top: 1px solid #000000;
+      }
+      .footer a {
+        color: #000000;
+        text-decoration: underline;
+      }
+
+      /* Responsive */
+      @media (max-width: 620px) {
+        .main {
+          width: 100% !important;
+          border-radius: 0;
+        }
+        .content {
+          padding: 20px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <table class="wrapper" width="100%" cellpadding="0" cellspacing="0">
+      <tr>
+        <td align="center">
+          <table class="main" cellpadding="0" cellspacing="0">
+            <!-- Header -->
+            <tr>
+              <td class="header">
+                <a href="https://hacker4.me/" target="_blank">
+                  <!-- Logo commented out until available -->
+                  <!--
+                  <img
+                    src="https://hacker4.me/assets/logo.png"
+                    alt="Hacker4.Me"
+                  />
+                  -->
+                  <div class="brand-name">Hacker4.Me</div>
+                </a>
+              </td>
+            </tr>
+
+            <!-- Content -->
+            <tr>
+              <td class="content">
+                <h1>Scan Report Completed!</h1>
+                <p>Hello,</p>
+                <p>
+                  Your security report for <strong>{{ domain }}</strong> has been successfully generated.
+                </p>
+                <p>
+                  Please find your detailed PDF report attached to this email.
+                </p>
+                <p>
+                  If you have any questions or need further assistance, our support team at
+                  <a href="https://hacker4.me/contact" target="_blank">Contact</a>
+                  is here to help.
+                </p>
+                <p>
+                  Thank you for trusting Hacker4.Me.
+                </p>
+              </td>
+            </tr>
+
+            <!-- Footer -->
+            <tr>
+              <td class="footer">
+                <p>
+                  This email was generated automatically. © 2025
+                  <a href="https://hacker4.me/" target="_blank">Hacker4.Me</a>.
+                  All rights reserved.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>
