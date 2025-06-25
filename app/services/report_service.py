@@ -1,9 +1,11 @@
+# app/services/report_service.py
+
 import os
 import json
 import io
 import pdfkit
 import boto3
-from datetime import datetime
+from datetime import datetime, timedelta
 from jinja2 import Environment, FileSystemLoader
 from app.factories.logger_factory import LoggerFactory
 
@@ -34,10 +36,46 @@ except Exception:
     aws_disponible = False
     logger.warning("Modo local: AWS no disponible")
 
+def buscar_reporte_s3(domain: str, max_age_horas: int = 24) -> str | None:
+    """
+    Busca en S3 un objeto OSCP_<domain>_<timestamp>.pdf dentro de reports/<domain>/,
+    y devuelve la key del más reciente si fue generado hace ≤ max_age_horas.
+    """
+    if not aws_disponible:
+        return None
+
+    prefix = f"reports/{domain}/OSCP_{domain}_"
+    try:
+        resp = s3.list_objects_v2(Bucket=BUCKET_NAME, Prefix=prefix)
+        items = resp.get("Contents", [])
+        candidatos: list[tuple[datetime, str]] = []
+        for o in items:
+            key = o["Key"]
+            # extrae el timestamp final: OSCP_domain_YYYYMMDDHHMMSS.pdf
+            ts_str = key.rsplit("_", 1)[-1].removesuffix(".pdf")
+            try:
+                ts = datetime.strptime(ts_str, "%Y%m%d%H%M%S")
+            except Exception:
+                continue
+            candidatos.append((ts, key))
+
+        if not candidatos:
+            return None
+
+        # elegir el más reciente
+        ts_max, key_max = max(candidatos, key=lambda x: x[0])
+        if datetime.utcnow() - ts_max <= timedelta(hours=max_age_horas):
+            return key_max
+
+    except Exception as e:
+        logger.error(f"Error buscando reporte en S3: {e}")
+
+    return None
 
 def guardar_en_dynamodb(domain: str, email: str):
     ts   = datetime.utcnow().isoformat()
     item = {"domain": domain, "email": email, "timestamp": ts}
+    logger.info("Guardando metadatos en DynamoDB o fallback local")
 
     if aws_disponible:
         try:
@@ -61,9 +99,11 @@ def generar_pdf_en_memoria(domain: str, scan_result: dict, report_data: dict) ->
     Genera un PDF en memoria y retorna los bytes.
     """
     ts = datetime.utcnow().strftime("%Y%m%d%H%M%S")
+    logger.info(f"Generando PDF en memoria para {domain} @ {ts}")
     try:
         env      = Environment(loader=FileSystemLoader(TEMPLATE_DIR))
         template = env.get_template("oscp_report_template.html")
+        logger.info("Renderizando plantilla HTML para PDF")
 
         html = template.render(
             student_email=report_data.get("email", ""),
@@ -73,6 +113,7 @@ def generar_pdf_en_memoria(domain: str, scan_result: dict, report_data: dict) ->
             **report_data
         )
 
+        logger.info("Convirtiendo HTML a PDF")
         pdf_bytes = pdfkit.from_string(html, False)
         logger.info("PDF generado en memoria")
         return pdf_bytes
@@ -87,6 +128,11 @@ def subir_pdf_memoria_a_s3(domain: str, pdf_bytes: bytes) -> str:
     Sube un PDF en memoria a S3 en reports/<domain>/ y retorna la URL firmada.
     """
     key = f"reports/{domain}/OSCP_{domain}_{datetime.utcnow().strftime('%Y%m%d%H%M%S')}.pdf"
+    logger.info(f"Subiendo PDF a S3 con key: {key}")
+    if not aws_disponible:
+        logger.warning("AWS no disponible, no se sube a S3")
+        return ""
+
     try:
         s3.upload_fileobj(
             io.BytesIO(pdf_bytes),
@@ -94,13 +140,14 @@ def subir_pdf_memoria_a_s3(domain: str, pdf_bytes: bytes) -> str:
             key,
             ExtraArgs={"ContentType": "application/pdf"}
         )
-        url = s3.generate_presigned_url(
-            "get_object",
-            Params={"Bucket": BUCKET_NAME, "Key": key},
-            ExpiresIn=3600
-        )
-        logger.info("PDF subido a S3 y URL firmada generada")
-        return url
+        logger.info("PDF subido a S3 exitosamente")
+        # url = s3.generate_presigned_url(
+        #     "get_object",
+        #     Params={"Bucket": BUCKET_NAME, "Key": key},
+        #     ExpiresIn=3600
+        # )
+        # logger.info("URL firmada generada")
+        # return key
 
     except Exception as e:
         logger.error(f"Error subiendo PDF a S3: {e}")

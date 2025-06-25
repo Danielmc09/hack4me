@@ -73,21 +73,6 @@
         color: #000000;
       }
 
-      /* Button */
-      .button-container {
-        text-align: center;
-        margin: 30px 0;
-      }
-      .btn {
-        background-color: #000000;
-        color: #ffffff;
-        text-decoration: none;
-        padding: 12px 24px;
-        border-radius: 25px;
-        font-weight: bold;
-        display: inline-block;
-      }
-
       /* Footer */
       .footer {
         font-size: 12px;
@@ -140,19 +125,11 @@
                 <h1>Scan Report Completed!</h1>
                 <p>Hello,</p>
                 <p>
-                  Your security report for <strong>{{ domain }}</strong> has been successfully completed.
+                  Your security report for <strong>{{ domain }}</strong> has been successfully generated.
                 </p>
                 <p>
-                  Click the button below to download your detailed PDF report:
+                  Please find your detailed PDF report attached to this email.
                 </p>
-
-                <!-- Button with signed URL -->
-                <div class="button-container">
-                  <a href="{{ pdf_url }}" target="_blank" class="btn">
-                    Download My Report
-                  </a>
-                </div>
-
                 <p>
                   If you have any questions or need further assistance, our support team at
                   <a href="https://hacker4.me/contact" target="_blank">Contact</a>

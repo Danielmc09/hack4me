@@ -18,18 +18,28 @@ env = Environment(
     autoescape=select_autoescape(["html", "xml"])
 )
 
-def render_scan_email(domain: str, pdf_url: str) -> str:
+
+def render_scan_email(domain: str) -> str:
     """
     Renderiza HTML con la plantilla scan_complete.html.
+    Ya NO espera pdf_url, sólo domain.
     """
     try:
         tpl = env.get_template("scan_complete.html")
-        return tpl.render(domain=domain, pdf_url=pdf_url)
+        return tpl.render(domain=domain)
     except Exception as e:
         logger.error(f"Error al renderizar plantilla de email: {e}")
         raise
+    
 
-def send_email(destinatario: str, asunto: str, cuerpo_html: str, remitente: str = None) -> bool:
+def send_email(
+    destinatario: str,
+    asunto: str,
+    cuerpo_html: str,
+    attachment: bytes = None,
+    filename: str = "report.pdf",
+    remitente: str = None
+) -> bool:
     """
     Envía un correo HTML usando SMTP.
     """
@@ -45,6 +55,17 @@ def send_email(destinatario: str, asunto: str, cuerpo_html: str, remitente: str 
     msg["Subject"] = asunto
 
     msg.attach(MIMEText(cuerpo_html, "html", "utf-8"))
+
+    if attachment:
+        from email.mime.application import MIMEApplication
+
+        pdf_part = MIMEApplication(attachment, _subtype="pdf")
+        pdf_part.add_header(
+            "Content-Disposition",
+            "attachment",
+            filename=filename
+        )
+        msg.attach(pdf_part)
 
     try:
         with smtplib.SMTP(smtp_host, smtp_port) as server:
